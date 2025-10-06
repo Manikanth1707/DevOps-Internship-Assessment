@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DevOps Internship Assessment - Next.js + Docker + GHCR + Minikube
 
-## Getting Started
+This repository contains a minimal Next.js app containerized with Docker, built and pushed via GitHub Actions to GitHub Container Registry (GHCR), and deployed to Kubernetes using Minikube.
 
-First, run the development server:
+## Repo & Image
+- Repo: `Manikanth1707/DevOps-Internship-Assessment`
+- Image: `ghcr.io/manikanth1707/devops-internship-assessment`
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Project Structure
+```
+nextjs-app/
+  Dockerfile
+  .dockerignore
+  .github/workflows/ci.yml
+  k8s/
+    deployment.yaml
+    service.yaml
+  src/app/*
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Prerequisites
+- A GitHub repository with Actions enabled.
+- GHCR permissions (default `GITHUB_TOKEN` is enough in the same repo).
+- Server with Minikube & kubectl for deployment.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Local Development (no Docker required)
+```bash
+cd nextjs-app
+npm install
+npm run dev
+# App at http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Build & Run Locally with Docker (optional)
+```bash
+# From nextjs-app/
+docker build -t nextjs-app:local .
+docker run --rm -p 3000:3000 nextjs-app:local
+```
 
-## Learn More
+## GitHub Actions (CI to GHCR)
+- Workflow: `.github/workflows/ci.yml`
+- Triggers on push to `main`
+- Tags: `latest`, branch name, and commit `sha`
 
-To learn more about Next.js, take a look at the following resources:
+### Steps
+1. Push code to `main`.
+2. GitHub Actions builds and pushes image to GHCR: `ghcr.io/<owner>/<repo>:<tag>`.
+3. Confirm image exists in the Packages section of the repo.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Kubernetes Deployment on Minikube
+### Start Minikube
+```bash
+minikube start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Pull GHCR image into Minikube
+If your cluster cannot pull from GHCR anonymously, create a pull secret:
+```bash
+kubectl create secret docker-registry ghcr-pull \
+  --docker-server=ghcr.io \
+  --docker-username=<GITHUB_USERNAME> \
+  --docker-password=<GHCR_TOKEN_OR_GITHUB_TOKEN> \
+  --docker-email=<EMAIL>
+```
+Add the secret name to `imagePullSecrets` in `k8s/deployment.yaml` if needed.
 
-## Deploy on Vercel
+### Apply manifests
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Wait for pods
+```bash
+kubectl rollout status deployment/nextjs-app
+kubectl get pods -l app=nextjs-app
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Access the app
+Using NodePort (configured 30080):
+```bash
+minikube ip
+# Then open http://<minikube-ip>:30080
+```
+
+Or use Minikube service helper:
+```bash
+minikube service nextjs-app
+```
+
+## Notes
+- Dockerfile uses multi-stage build and Next.js standalone output.
+- Health checks are HTTP GET `/` on port 3000.
+- Update image tag in `k8s/deployment.yaml` to a specific `:sha` for immutable deploys.
