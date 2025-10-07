@@ -33,7 +33,8 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 # Copy only the standalone production build
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# Create public directory (Next.js will create it if needed)
+RUN mkdir -p ./public
 
 # Expose Next.js port
 EXPOSE 3000
